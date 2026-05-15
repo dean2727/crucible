@@ -245,10 +245,46 @@ def _worker_matches_task(worker, task_private_ips):
     name = worker.get("name") or ""
     for private_ip in task_private_ips:
         private_dns_fragment = f"ip-{private_ip.replace('.', '-')}"
-        if private_ip in name or private_dns_fragment in name:
+        if _name_contains_ip(name, private_ip) or _name_contains_dns_fragment(
+            name, private_dns_fragment
+        ):
             return True
 
     return False
+
+
+def _name_contains_ip(name, private_ip):
+    return _name_contains_token(name, private_ip, _continues_ip_token)
+
+
+def _name_contains_dns_fragment(name, private_dns_fragment):
+    return _name_contains_token(
+        name, private_dns_fragment, _continues_dns_fragment_token
+    )
+
+
+def _name_contains_token(name, token, continues_token):
+    start = 0
+    while True:
+        index = name.find(token, start)
+        if index == -1:
+            return False
+
+        before_ok = index == 0 or not continues_token(name[index - 1])
+        end = index + len(token)
+        after_ok = end == len(name) or not continues_token(name[end])
+        if before_ok and after_ok:
+            return True
+
+        start = index + 1
+
+
+def _continues_ip_token(char):
+    return char.isdigit() or char == "."
+
+
+def _continues_dns_fragment_token(char):
+    return char.isdigit()
 
 
 def _metric(name, value, unit, dimensions):
