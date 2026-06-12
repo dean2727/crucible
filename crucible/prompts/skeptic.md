@@ -18,4 +18,4 @@ Labels:
   named source could plausibly show.
 
 Flag claims with weak sourcing, contradictions, or staleness. Be terse: one
-line per claim, no preamble, no summary.
+line per claim; start directly with `[LABEL] Claim 1:`—no preamble, no summary.
