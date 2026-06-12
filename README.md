@@ -18,6 +18,18 @@ run locally or in cloud PR mode.
    newest feedback without violating earlier feedback. Local mode commits the
    skill edit to git; cloud mode opens a PR with `autoCreatePR`.
 
+## Screenshots
+
+| Labeled brief | Human feedback |
+|:---:|:---:|
+| ![Labeled brief with evidence ledger](docs/screenshots/labeled-brief.png) | ![Feedback prompt](docs/screenshots/feedback-prompt.png) |
+
+| Skill evolution (git diff) | Skill history |
+|:---:|:---:|
+| ![Coach diff after feedback](docs/screenshots/skill-diff.png) | ![Git log of skeptic skill](docs/screenshots/git-evolution.png) |
+
+Add your own captures under `docs/screenshots/` — see [docs/screenshots/README.md](docs/screenshots/README.md) for filenames and what to shoot.
+
 ## How a run flows
 
 ```mermaid
@@ -83,5 +95,5 @@ CRUCIBLE_COACH_RUNTIME=cloud pnpm dev "Does remote work improve productivity?"
 Watch the skeptic evolve:
 
 ```bash
-git log --oneline -- crucible/.cursor/skills/skeptic/SKILL.md
+git log --oneline -- .cursor/skills/skeptic/SKILL.md
 ```

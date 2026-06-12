@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import { appendFile, readFile, writeFile } from "node:fs/promises"
 import { execFileSync } from "node:child_process"
 import { dirname, join } from "node:path"
@@ -112,14 +113,19 @@ function printBrief(brief: string, ledger: string) {
   console.log(chalk.dim(ledger))
 }
 
+if (!existsSync(SKEPTIC_SKILL_PATH)) {
+  fail(`Missing ${SKEPTIC_SKILL_PATH}. Run from the Crucible repo root (cd ~/Documents/projects/crucible), not crucible/crucible.`)
+}
 if (!process.env.CURSOR_API_KEY) fail("CURSOR_API_KEY is not set. Get one at cursor.com/dashboard -> Integrations.")
 const question = process.argv.slice(2).join(" ").trim()
 if (!question) fail('Usage: pnpm dev "<research question>"')
 
+await appendFile(FEEDBACK_LOG_PATH, "", { flag: "a" })
 const priorFeedback = await readFile(FEEDBACK_LOG_PATH, "utf8").catch(() => "")
 const runNumber = priorFeedback.split("\n").filter(Boolean).length + 1
 
 console.log(chalk.bold(`Crucible run ${runNumber}`))
+console.log(chalk.dim(`root: ${ROOT}`))
 console.log(chalk.bold(`Question: ${question}\n`))
 console.log(chalk.dim(`models: researcher=${ROLE_MODELS.researcher.id}, skeptic=${ROLE_MODELS.skeptic.id}, verifier=${ROLE_MODELS.verifier.id}, coach=${ROLE_MODELS.coach.id}`))
 console.log(chalk.dim(`coach runtime: ${USE_CLOUD_COACH ? "cloud + autoCreatePR" : "local commit"}\n`))
@@ -143,6 +149,9 @@ const evidenceLedger = await readEvidenceLedger()
 const briefWithLedger = `${brief}\n\nEvidence ledger:\n${evidenceLedger}`
 printBrief(brief, evidenceLedger)
 
+// Drop anything typed/pasted while the agents were streaming so only input
+// entered after the prompt appears counts as feedback.
+if (process.stdin.isTTY) while (process.stdin.read() !== null) {}
 const rl = createInterface({ input: process.stdin, output: process.stdout })
 const feedback = (await rl.question(chalk.bold("\nFeedback on the skeptic (one line, empty to skip): "))).trim()
 rl.close()
