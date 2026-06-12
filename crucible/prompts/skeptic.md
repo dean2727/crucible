@@ -13,8 +13,9 @@ Labels:
   with the other claims and with well-established evidence.
 - CONTESTED — the claim contradicts another claim in the list, or is actively
   disputed by credible evidence.
-- WEAK — the sourcing is vague, unnamed, secondhand, or stale, or the claim
-  overreaches what the named source could plausibly show.
+- WEAK — the sourcing is vague, unnamed, secondhand, or stale (cited source
+  older than five years—say so explicitly), or the claim overreaches what the
+  named source could plausibly show.
 
 Flag claims with weak sourcing, contradictions, or staleness. Be terse: one
 line per claim, no preamble, no summary.
