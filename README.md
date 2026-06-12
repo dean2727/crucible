@@ -1,45 +1,87 @@
-# Cursor Cookbook
+# Crucible
 
-This repo contains small examples for building with Cursor.
+A research system where a skeptic agent's prompt evolves through human
+feedback, with the evolution tracked in git.
 
-## Cursor Hooks
+Each run makes three role-routed agent calls (researcher, skeptic, coach) via
+`@cursor/sdk`. The skeptic can fan out to verifier subagents, and the coach can
+run locally or in cloud PR mode.
 
-Cursor Hooks let you run custom checks and workflows around agent events such as prompt submission, shell commands, file edits, and agent completion.
+1. **Researcher** turns your question into sourced claims.
+2. **Skeptic** (a project skill at `.cursor/skills/skeptic/SKILL.md`) labels
+   each claim VERIFIED / CONTESTED / WEAK. It can delegate individual claims to
+   verifier subagents.
+3. The labeled brief prints to the terminal, then you give one line of
+   feedback (logged to `feedback.log`). A project hook writes shell commands to
+   `.cursor/evidence-ledger.jsonl`, and that ledger is appended to the brief.
+4. **Coach** proposes the smallest edit to the skeptic skill that addresses the
+   newest feedback without violating earlier feedback. Local mode commits the
+   skill edit to git; cloud mode opens a PR with `autoCreatePR`.
 
-### [Hooks examples](hooks)
+## How a run flows
 
-A guided project hook setup for audit logging, sensitive prompt guards, and follow-up checks that keep Cursor skills aligned with code changes.
+```mermaid
+flowchart TD
+    Q(["CLI arg: research question"]) --> R
 
-## Cloud Agents
+    subgraph run ["One Crucible run (run.ts)"]
+        R["Researcher agent<br/>Composer 2"] -->|"numbered claims, each naming a source"| S
+        SP[(".cursor/skills/skeptic/SKILL.md")] -.->|"loaded by Cursor as a project skill"| S
+        S -->|"delegates claim checks"| V["Verifier subagents<br/>frontier model"]
+        V -->|"claim evidence"| S
+        HJ[(".cursor/hooks.json")] -.->|"before/after shell hooks"| EL[("evidence-ledger.jsonl")]
+        S["Skeptic agent"] -->|"labels every claim"| B["Labeled brief<br/>VERIFIED / CONTESTED / WEAK"]
+        EL -->|"append shell audit trail"| B
+        B --> H["Human: one line of feedback on stdin"]
+        H -->|"run N + timestamp + feedback"| FL[("feedback.log")]
+        H --> C["Coach agent<br/>frontier model"]
+        FL -.->|"full feedback history"| C
+        SP -.->|"current prompt"| C
+        B -.->|"this run's brief"| C
+        C -->|"newest feedback fits earlier feedback"| E["Smallest edit to skeptic skill"]
+        C -->|"newest feedback contradicts earlier"| X["No edit: print conflict,<br/>human resolves next run"]
+        E --> G["local: git commit<br/>cloud: autoCreatePR"]
+        G --> D["Print diff or PR URL"]
+    end
 
-### [Self-hosted Cloud Agents lab](cloud-agent)
+    E -.->|"updates"| SP
+    D --> N(["Next run uses the evolved skeptic"])
+    N -.-> Q
+```
 
-Run Cursor Cloud Agent workers on customer-managed AWS infrastructure with examples for EC2 + Docker, ECS/Fargate, and EKS + Helm.
+The dotted edges into the coach are its three inputs; the dotted edge out of
+the edit is the core loop: each run's feedback permanently reshapes the
+skeptic that the next run will use, one git commit at a time.
 
-## Cursor SDK
+## Usage
 
-The Cursor SDK is the TypeScript API for running Cursor's coding agent from your own apps, scripts, and workflows. It supports the same agent across local workspaces and cloud runtimes, streams agent events as runs progress, and lets you manage prompts, models, cancellation, artifacts, and conversation state from code.
+Node.js 22+.
 
-To run the SDK examples, create a Cursor API key from the [Cursor integrations dashboard](https://cursor.com/dashboard/integrations), then set it as `CURSOR_API_KEY`.
+```bash
+pnpm install
+echo 'CURSOR_API_KEY=crsr_...' > .env   # cursor.com/dashboard -> Integrations
+pnpm dev "What is known about the health effects of intermittent fasting?"
+```
 
-### [Quickstart](sdk/quickstart)
+(`CURSOR_API_KEY` exported in your shell also works; `.env` is gitignored.)
 
-A minimal Node.js example that creates a local agent, sends one prompt, and streams the response.
+Role model defaults:
 
-### [Prototyping tool](sdk/app-builder)
+```bash
+CRUCIBLE_RESEARCHER_MODEL=composer-2
+CRUCIBLE_SKEPTIC_MODEL=gpt-5.5
+CRUCIBLE_VERIFIER_MODEL=gpt-5.5
+CRUCIBLE_COACH_MODEL=gpt-5.5
+```
 
-A web app for spinning up agents to scaffold new projects and iterate on ideas in a sandboxed cloud environment.
+Run the coach as a cloud agent that opens a PR instead of committing locally:
 
-### [Kanban board](sdk/agent-kanban)
+```bash
+CRUCIBLE_COACH_RUNTIME=cloud pnpm dev "Does remote work improve productivity?"
+```
 
-A kanban board for viewing Cursor Cloud Agents, grouping them by status or repository, previewing artifacts, and creating new cloud agents from a repository and prompt.
+Watch the skeptic evolve:
 
-### [Coding agent CLI](sdk/coding-agent-cli)
-
-A minimal command-line interface that lets you spawn Cursor agents from your terminal.
-
-### [DAG task runner](sdk/dag-task-runner)
-
-Decompose a task into a JSON DAG, fan it out across local subagents, and stream live status into a Cursor Canvas that hot-reloads on every state change. Ships as both a runnable example and a copyable Cursor skill at [`.cursor/skills/dag-task-runner`](.cursor/skills/dag-task-runner).
-
-Learn more in the [Cursor SDK TypeScript docs](https://cursor.com/docs/api/sdk/typescript).
+```bash
+git log --oneline -- crucible/.cursor/skills/skeptic/SKILL.md
+```
