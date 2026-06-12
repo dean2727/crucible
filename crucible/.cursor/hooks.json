@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "node .cursor/hooks/evidence-ledger.mjs",
+        "timeout": 5,
+        "failClosed": false
+      }
+    ],
+    "afterShellExecution": [
+      {
+        "command": "node .cursor/hooks/evidence-ledger.mjs",
+        "timeout": 5,
+        "failClosed": false
+      }
+    ]
+  }
+}

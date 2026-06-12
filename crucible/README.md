@@ -3,17 +3,20 @@
 A research system where a skeptic agent's prompt evolves through human
 feedback, with the evolution tracked in git.
 
-Each run makes three sequential local agent calls (researcher, skeptic, coach)
-via `@cursor/sdk`:
+Each run makes three role-routed agent calls (researcher, skeptic, coach) via
+`@cursor/sdk`. The skeptic can fan out to verifier subagents, and the coach can
+run locally or in cloud PR mode.
 
 1. **Researcher** turns your question into sourced claims.
-2. **Skeptic** (system prompt loaded from `prompts/skeptic.md`) labels each
-   claim VERIFIED / CONTESTED / WEAK.
+2. **Skeptic** (a project skill at `.cursor/skills/skeptic/SKILL.md`) labels
+   each claim VERIFIED / CONTESTED / WEAK. It can delegate individual claims to
+   verifier subagents.
 3. The labeled brief prints to the terminal, then you give one line of
-   feedback (logged to `feedback.log`).
-4. **Coach** proposes the smallest edit to `prompts/skeptic.md` that addresses
-   the newest feedback without violating earlier feedback, and the edit is
-   committed to git. Conflicting feedback is surfaced instead of applied.
+   feedback (logged to `feedback.log`). A project hook writes shell commands to
+   `.cursor/evidence-ledger.jsonl`, and that ledger is appended to the brief.
+4. **Coach** proposes the smallest edit to the skeptic skill that addresses the
+   newest feedback without violating earlier feedback. Local mode commits the
+   skill edit to git; cloud mode opens a PR with `autoCreatePR`.
 
 ## How a run flows
 
@@ -22,19 +25,23 @@ flowchart TD
     Q(["CLI arg: research question"]) --> R
 
     subgraph run ["One Crucible run (run.ts)"]
-        R["Researcher agent"] -->|"numbered claims, each naming a source"| S
-        SP[("prompts/skeptic.md")] -.->|"loaded at runtime as system prompt"| S
+        R["Researcher agent<br/>Composer 2"] -->|"numbered claims, each naming a source"| S
+        SP[(".cursor/skills/skeptic/SKILL.md")] -.->|"loaded by Cursor as a project skill"| S
+        S -->|"delegates claim checks"| V["Verifier subagents<br/>frontier model"]
+        V -->|"claim evidence"| S
+        HJ[(".cursor/hooks.json")] -.->|"before/after shell hooks"| EL[("evidence-ledger.jsonl")]
         S["Skeptic agent"] -->|"labels every claim"| B["Labeled brief<br/>VERIFIED / CONTESTED / WEAK"]
+        EL -->|"append shell audit trail"| B
         B --> H["Human: one line of feedback on stdin"]
         H -->|"run N + timestamp + feedback"| FL[("feedback.log")]
-        H --> C["Coach agent"]
+        H --> C["Coach agent<br/>frontier model"]
         FL -.->|"full feedback history"| C
         SP -.->|"current prompt"| C
         B -.->|"this run's brief"| C
-        C -->|"newest feedback fits earlier feedback"| E["Smallest edit to skeptic.md"]
+        C -->|"newest feedback fits earlier feedback"| E["Smallest edit to skeptic skill"]
         C -->|"newest feedback contradicts earlier"| X["No edit: print conflict,<br/>human resolves next run"]
-        E --> G["git commit<br/>skeptic: summary (run N: feedback verbatim)"]
-        G --> D["Print git diff of skeptic.md"]
+        E --> G["local: git commit<br/>cloud: autoCreatePR"]
+        G --> D["Print diff or PR URL"]
     end
 
     E -.->|"updates"| SP
@@ -58,10 +65,23 @@ pnpm dev "What is known about the health effects of intermittent fasting?"
 
 (`CURSOR_API_KEY` exported in your shell also works; `.env` is gitignored.)
 
-Optional: `CURSOR_MODEL` overrides the model (default `composer-2.5`).
+Role model defaults:
+
+```bash
+CRUCIBLE_RESEARCHER_MODEL=composer-2
+CRUCIBLE_SKEPTIC_MODEL=gpt-5.5
+CRUCIBLE_VERIFIER_MODEL=gpt-5.5
+CRUCIBLE_COACH_MODEL=gpt-5.5
+```
+
+Run the coach as a cloud agent that opens a PR instead of committing locally:
+
+```bash
+CRUCIBLE_COACH_RUNTIME=cloud pnpm dev "Does remote work improve productivity?"
+```
 
 Watch the skeptic evolve:
 
 ```bash
-git log --oneline -- crucible/prompts/skeptic.md
+git log --oneline -- crucible/.cursor/skills/skeptic/SKILL.md
 ```
